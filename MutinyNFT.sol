@@ -3,6 +3,7 @@
 pragma solidity 0.8.7;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 /**
  * @dev Interface for the `CommunityProposals` contract.
@@ -55,8 +56,8 @@ contract CommunityProposals {
     mapping(uint256 => bool) public executed;
     // Proposal number => voting deadline
     mapping(uint256 => uint256) public deadlines;
-    // Proposal number => (account address => voted)
-    mapping(uint256 => mapping(address => bool)) public votesByAccount;
+    // Proposal number => (token ID => voted)
+    mapping(uint256 => mapping(uint256 => bool)) public votesByTokenId;
 
     /**
      * @dev Constructor sets the `_deployer` address.
@@ -81,14 +82,6 @@ contract CommunityProposals {
         require(
             proposalNumber_ > 0 && proposalNumber_ < proposalNumber,
             "CommunityProposals: Invalid proposal number"
-        );
-        _;
-    }
-
-    modifier msgSenderCanVoteOnProposal(uint256 proposalNumber_) {
-        require(
-            votesByAccount[proposalNumber_][msg.sender] == false,
-            "CommunityProposals: Address has already voted on this proposal"
         );
         _;
     }
@@ -171,27 +164,35 @@ contract CommunityProposals {
      * Note that only votes in favor of the proposal need to be logged as votes
      * against may be calculated from: (total votes) -( votes in favor).
      */
-    function voteOnProposal(uint256 proposalNumber_, bool voteInFavor)
-        external
-        proposalExists(proposalNumber_)
-        msgSenderCanVoteOnProposal(proposalNumber_)
-        msgSenderIsNftHolder
-    {
-        uint256 nftBalanceOfMsgSender = _nftContract.balanceOf(msg.sender);
+    function voteOnProposal(
+        uint256 proposalNumber_,
+        uint256 tokenId,
+        bool voteInFavor
+    ) external proposalExists(proposalNumber_) msgSenderIsNftHolder {
+        address ownerOfTokenId = _nftContract.ownerOf(msg.sender);
 
         require(
-            nftBalanceOfMsgSender > 0,
-            "CommunityProposals: Feature only available to NFT holders"
+            msg.sender == ownerOfTokenId,
+            "CommunityProposals: Feature only available to NFT holder"
         );
 
-        totalVotes[proposalNumber_] += nftBalanceOfMsgSender;
-        votesByAccount[proposalNumber_][msg.sender] = true;
+        totalVotes[proposalNumber_] += 1;
+        votesByTokenId[proposalNumber_][tokenId] = true;
 
         if (voteInFavor) {
-            votesInFavor[proposalNumber_] += nftBalanceOfMsgSender;
+            votesInFavor[proposalNumber_] += 1;
         }
+    }
 
-        // @todo Check whether proposal can be approved
+    /**
+     * @dev Approves `proposalNumber_` if approval conditions have been met.
+     */
+    function approveProposal(uint256 proposalNumber_) external {
+        bool approvalConditionsMet = true;
+
+        if (approvalConditionsMet) {
+            approvals[proposalNumber_] = true;
+        }
     }
 
     /**
@@ -256,16 +257,19 @@ contract CommunityProposals {
  * @dev An ERC721 token contract that allows community-generated proposals to
  * potentially make changes to any of the contract's state variables.
  */
-contract MutinyNFT {
+contract MutinyNFT is ERC721 {
     address public owner;
 
     // PRICE, discordLink, website, etc.
     // bytes32 array for message?
 
     /**
-     * @dev Constructor sets `owner` to `msg.sender`.
+     * @dev Constructor runs ERC721 constructor and sets `owner` to
+     * `msg.sender`.
      */
-    constructor() {
+    constructor(string calldata name, string calldata symbol)
+        ERC721(name, symbol)
+    {
         owner = msg.sender;
     }
 
