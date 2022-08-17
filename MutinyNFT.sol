@@ -69,6 +69,9 @@ contract CommunityProposals {
         _deployer = deployer;
     }
 
+    /**
+     * @dev Requires `msg.sender` is an NFT holder.
+     */
     modifier msgSenderIsNftHolder() {
         uint256 nftBalanceOfMsgSender = _nftContract.balanceOf(msg.sender);
         require(
@@ -78,18 +81,13 @@ contract CommunityProposals {
         _;
     }
 
+    /**
+     * @dev Requires `proposalNumber_` is valid.
+     */
     modifier proposalExists(uint256 proposalNumber_) {
         require(
             proposalNumber_ > 0 && proposalNumber_ < proposalNumber,
             "CommunityProposals: Invalid proposal number"
-        );
-        _;
-    }
-
-    modifier msgSenderIsNftContract() {
-        require(
-            msg.sender == address(_nftContract),
-            "CommunityProposals: Feature only available to NFT contract"
         );
         _;
     }
@@ -229,8 +227,12 @@ contract CommunityProposals {
     function setProposalExecuted(uint256 proposalNumber_)
         external
         proposalExists(proposalNumber_)
-        msgSenderIsNftContract
     {
+        require(
+            msg.sender == address(_nftContract),
+            "CommunityProposals: Feature only available to NFT contract"
+        );
+
         executed[proposalNumber_] = true;
     }
 
